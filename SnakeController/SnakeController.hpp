@@ -6,6 +6,7 @@
 
 #include "IEventHandler.hpp"
 #include "SnakeInterface.hpp"
+#include "EventT.hpp"
 
 class Event;
 class IPort;
@@ -32,7 +33,13 @@ public:
 
     void receive(std::unique_ptr<Event> e) override;
 
+
 private:
+    void timerUpdate(TimeoutInd const& timerEvent);
+    void changeDirection(DirectionInd const& directionInd);
+    void spawnFood(FoodResp const& requestedFood);
+    void eatFood(FoodInd const& food);
+
     struct Segment
     {
         int x;
