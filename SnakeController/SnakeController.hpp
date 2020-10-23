@@ -9,6 +9,7 @@
 #include "SnakeInterface.hpp"
 
 #include "Map.hpp"
+#include "Snake.hpp"
 
 class Event;
 class IPort;
@@ -35,6 +36,8 @@ public:
 
     void receive(std::unique_ptr<Event> e) override;
 
+    std::pair<int, int>& getFoodPosition();
+
 private:
     IPort& m_displayPort;
     IPort& m_foodPort;
@@ -42,16 +45,14 @@ private:
 
     std::unique_ptr<Map> map;
 
+    std::unique_ptr<SnakeBody> m_body;
+
     std::pair<int, int> m_foodPosition;
 
-    struct Segment
-    {
-        int x;
-        int y;
-    };
-
-    std::list<Segment> m_segments;
     Direction m_currentDirection;
+
+
+
 
     void handleTimeoutInd();
     void handleDirectionInd(std::unique_ptr<Event>);
@@ -60,11 +61,7 @@ private:
     void handlePauseInd(std::unique_ptr<Event>);
 
     bool isSegmentAtPosition(int x, int y) const;
-    Segment calculateNewHead() const;
-    void updateSegmentsIfSuccessfullMove(Segment const& newHead);
-    void addHeadSegment(Segment const& newHead);
-    void removeTailSegmentIfNotScored(Segment const& newHead);
-    void removeTailSegment();
+
 
     bool isPositionOutsideMap(int x, int y) const;
 
@@ -73,6 +70,8 @@ private:
     void sendPlaceNewFood(int x, int y);
 
     bool m_paused;
+
+    friend class SnakeBody; // TODO: refactor?
 };
 
 } // namespace Snake

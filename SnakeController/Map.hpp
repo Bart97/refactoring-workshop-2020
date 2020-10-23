@@ -1,4 +1,7 @@
 #pragma once
+
+namespace Snake
+{
 struct Coordinate
 {
     int x;
@@ -17,3 +20,4 @@ public:
 private:
     Coordinate _dimension;
 };
+}

@@ -33,6 +33,8 @@ Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePo
         map = std::make_unique<Map>(width, height);
         m_foodPosition = std::make_pair(foodX, foodY);
 
+        m_body = std::make_unique<SnakeBody>(*this);
+
         istr >> d;
         switch (d) {
             case 'U':
@@ -53,22 +55,14 @@ Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePo
         istr >> length;
 
         while (length--) {
-            Segment seg;
+            SnakeBody::Segment seg;
             istr >> seg.x >> seg.y;
-            m_segments.push_back(seg);
+            m_body->addSegment(seg);
         }
     } else {
         throw ConfigurationError();
     }
 }
-
-bool Controller::isSegmentAtPosition(int x, int y) const
-{
-    return m_segments.end() !=  std::find_if(m_segments.cbegin(), m_segments.cend(),
-        [x, y](auto const& segment){ return segment.x == x and segment.y == y; });
-}
-
-
 
 void Controller::sendPlaceNewFood(int x, int y)
 {
@@ -107,7 +101,7 @@ bool isVertical(Direction direction)
 bool isPositive(Direction direction)
 {
     return (isVertical(direction) and Direction_DOWN == direction)
-        or (isHorizontal(direction) and Direction_RIGHT == direction);
+           or (isHorizontal(direction) and Direction_RIGHT == direction);
 }
 
 bool perpendicular(Direction dir1, Direction dir2)
@@ -116,65 +110,10 @@ bool perpendicular(Direction dir1, Direction dir2)
 }
 } // namespace
 
-Controller::Segment Controller::calculateNewHead() const
-{
-    Segment const& currentHead = m_segments.front();
-
-    Segment newHead;
-    newHead.x = currentHead.x + (isHorizontal(m_currentDirection) ? isPositive(m_currentDirection) ? 1 : -1 : 0);
-    newHead.y = currentHead.y + (isVertical(m_currentDirection) ? isPositive(m_currentDirection) ? 1 : -1 : 0);
-
-    return newHead;
-}
-
-void Controller::removeTailSegment()
-{
-    auto tail = m_segments.back();
-
-    DisplayInd l_evt;
-    l_evt.x = tail.x;
-    l_evt.y = tail.y;
-    l_evt.value = Cell_FREE;
-    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(l_evt));
-
-    m_segments.pop_back();
-}
-
-void Controller::addHeadSegment(Segment const& newHead)
-{
-    m_segments.push_front(newHead);
-
-    DisplayInd placeNewHead;
-    placeNewHead.x = newHead.x;
-    placeNewHead.y = newHead.y;
-    placeNewHead.value = Cell_SNAKE;
-
-    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(placeNewHead));
-}
-
-void Controller::removeTailSegmentIfNotScored(Segment const& newHead)
-{
-    if (std::make_pair(newHead.x, newHead.y) == m_foodPosition) {
-        m_scorePort.send(std::make_unique<EventT<ScoreInd>>());
-        m_foodPort.send(std::make_unique<EventT<FoodReq>>());
-    } else {
-        removeTailSegment();
-    }
-}
-
-void Controller::updateSegmentsIfSuccessfullMove(Segment const& newHead)
-{
-    if (isSegmentAtPosition(newHead.x, newHead.y) or map->isPositionOutsideMap(newHead.x, newHead.y)) {
-        m_scorePort.send(std::make_unique<EventT<LooseInd>>());
-    } else {
-        addHeadSegment(newHead);
-        removeTailSegmentIfNotScored(newHead);
-    }
-}
 
 void Controller::handleTimeoutInd()
 {
-    updateSegmentsIfSuccessfullMove(calculateNewHead());
+    m_body->updateSegmentsIfSuccessfullMove(m_body->calculateNewHead());
 }
 
 void Controller::handleDirectionInd(std::unique_ptr<Event> e)
@@ -188,7 +127,7 @@ void Controller::handleDirectionInd(std::unique_ptr<Event> e)
 
 void Controller::updateFoodPosition(int x, int y, std::function<void()> clearPolicy)
 {
-    if (isSegmentAtPosition(x, y) || map->isPositionOutsideMap(x,y)) {
+    if (m_body->isSegmentAtPosition(x, y) || map->isPositionOutsideMap(x,y)) {
         m_foodPort.send(std::make_unique<EventT<FoodReq>>());
         return;
     }
@@ -214,6 +153,11 @@ void Controller::handleFoodResp(std::unique_ptr<Event> e)
 void Controller::handlePauseInd(std::unique_ptr<Event> e)
 {
     m_paused = not m_paused;
+}
+
+std::pair<int, int>& Controller::getFoodPosition()
+{
+    return m_foodPosition;
 }
 
 void Controller::receive(std::unique_ptr<Event> e)
